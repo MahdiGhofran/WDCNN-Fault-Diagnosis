@@ -12,7 +12,6 @@ from sklearn.metrics import confusion_matrix
 import numpy as np
 
 def train_and_evaluate(args):
-    # Device configuration
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
@@ -20,19 +19,19 @@ def train_and_evaluate(args):
     num_epochs = args.epochs
     batch_size = args.batch_size
     learning_rate = args.lr
-    num_classes = 4 # Normal, InnerRace, Ball, OuterRace
+    num_classes = 10 # Updated to 10 classes
 
-    # Dataset & DataLoader
+    # Dataset
     script_dir = os.path.dirname(os.path.abspath(__file__))
     data_path = os.path.join(os.path.dirname(script_dir), 'data')
     
     full_dataset = CWRUDataset(root_dir=data_path)
     
     if len(full_dataset) == 0:
-        print("No data loaded! Please run download_data.py first.")
+        print("No data loaded!")
         return
 
-    # Split into Train (70%), Validation (15%), and Test (15%)
+    # Split: Train (70%), Val (15%), Test (15%)
     total_count = len(full_dataset)
     train_size = int(0.7 * total_count)
     val_size = int(0.15 * total_count)
@@ -53,15 +52,14 @@ def train_and_evaluate(args):
 
     # Loss and Optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate) # WDCNN paper uses SGD, but Adam is faster for quick results
 
-    # History for plotting
+    # History
     train_losses = []
     train_accuracies = []
     val_accuracies = []
 
     # Training Loop
-    total_step = len(train_loader)
     best_val_acc = 0.0
     
     for epoch in range(num_epochs):
@@ -74,11 +72,12 @@ def train_and_evaluate(args):
             signals = signals.to(device)
             labels = labels.to(device)
 
-            # Forward pass
+            # Add minimal random noise during training to prevent absolute overfitting
+            # signal_noise = signals + 0.01 * torch.randn_like(signals) 
+            
             outputs = model(signals)
             loss = criterion(outputs, labels)
 
-            # Backward and optimize
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -93,7 +92,7 @@ def train_and_evaluate(args):
         train_losses.append(epoch_loss)
         train_accuracies.append(epoch_acc)
         
-        # Evaluation on Validation Set (NOT Test Set)
+        # Validation
         model.eval()
         val_correct = 0
         val_total = 0
@@ -109,7 +108,6 @@ def train_and_evaluate(args):
         val_acc = 100 * val_correct / val_total
         val_accuracies.append(val_acc)
         
-        # Save best model based on Validation Accuracy
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             torch.save(model.state_dict(), 'wdcnn_model_best.pth')
@@ -117,34 +115,20 @@ def train_and_evaluate(args):
         print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Train Acc: {epoch_acc:.2f}%, Val Acc: {val_acc:.2f}%')
 
     print("Training finished. Loading best model for testing...")
-    
-    # Load the best model saved during training
     model.load_state_dict(torch.load('wdcnn_model_best.pth'))
     
-    # --- PLOTTING ---
-    
-    # 1. Accuracy & Loss Curves
+    # Plotting
     plt.figure(figsize=(12, 5))
-    
     plt.subplot(1, 2, 1)
     plt.plot(train_losses, label='Training Loss')
-    plt.title('Training Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
     plt.legend()
-    
     plt.subplot(1, 2, 2)
     plt.plot(train_accuracies, label='Train Accuracy')
-    plt.plot(val_accuracies, label='Validation Accuracy') # Plot Validation Acc, not Test
-    plt.title('Model Accuracy')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy (%)')
+    plt.plot(val_accuracies, label='Validation Accuracy')
     plt.legend()
-    
     plt.savefig('training_results.png')
-    print("Saved training_results.png")
     
-    # 2. Confusion Matrix (Strictly on TEST set)
+    # Final Test with Confusion Matrix
     print("Evaluating on strictly held-out Test Set...")
     model.eval()
     all_preds = []
@@ -161,7 +145,6 @@ def train_and_evaluate(args):
             
             test_total += labels.size(0)
             test_correct += (predicted == labels).sum().item()
-            
             all_preds.extend(predicted.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
 
@@ -169,19 +152,18 @@ def train_and_evaluate(args):
     print(f"Final Test Accuracy: {final_test_acc:.2f}%")
             
     cm = confusion_matrix(all_labels, all_preds)
-    class_names = ['Normal', 'Inner Race', 'Ball', 'Outer Race']
+    # Short names for 10 classes
+    class_names = ['Norm', 'IR07', 'B07', 'OR07', 'IR14', 'B14', 'OR14', 'IR21', 'B21', 'OR21']
     
-    plt.figure(figsize=(8, 6))
+    plt.figure(figsize=(10, 8))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=class_names, yticklabels=class_names)
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title(f'Confusion Matrix (Test Acc: {final_test_acc:.1f}%)')
+    plt.title(f'Confusion Matrix (10 Classes) - Acc: {final_test_acc:.1f}%')
     plt.savefig('confusion_matrix.png')
     print("Saved confusion_matrix.png")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, default=20)
+    parser.add_argument('--epochs', type=int, default=30) # Increased epochs for harder problem
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--lr', type=float, default=0.001)
     args = parser.parse_args()

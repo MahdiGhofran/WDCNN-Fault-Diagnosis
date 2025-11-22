@@ -4,16 +4,19 @@ import urllib.request
 # Base URL for CWRU Data
 BASE_URL = "https://engineering.case.edu/sites/default/files/"
 
-# List of files to download (Example subset)
-# 97.mat: Normal Baseline
-# 105.mat: Inner Race Fault, 0.007 inches, Load 0
-# 118.mat: Ball Fault, 0.007 inches, Load 0
-# 130.mat: Outer Race Fault, 0.007 inches, Load 0
+# Standard 10 Classes (12k Fan End / Drive End data usually used)
+# Using Load 0 (approx 1797 RPM) for consistency
 FILES = {
-    "97.mat": "97.mat",
-    "105.mat": "105.mat",
-    "118.mat": "118.mat",
-    "130.mat": "130.mat"
+    "97.mat": "97.mat",    # Normal
+    "105.mat": "105.mat",  # IR 0.007"
+    "118.mat": "118.mat",  # Ball 0.007"
+    "130.mat": "130.mat",  # OR 0.007" (@6:00)
+    "169.mat": "169.mat",  # IR 0.014"
+    "185.mat": "185.mat",  # Ball 0.014"
+    "197.mat": "197.mat",  # OR 0.014" (@6:00)
+    "209.mat": "209.mat",  # IR 0.021"
+    "222.mat": "222.mat",  # Ball 0.021"
+    "234.mat": "234.mat"   # OR 0.021" (@6:00)
 }
 
 # Get the directory where this script is located
@@ -42,4 +45,3 @@ def download_data():
 
 if __name__ == "__main__":
     download_data()
-
